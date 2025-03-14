@@ -7,8 +7,6 @@ from dotenv import load_dotenv
 from transformers import AutoTokenizer
 from huggingface_hub import login
 
-load_dotenv()
-
 # Récupération du token Hugging Face depuis les variables d'environnement
 HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
 if not HUGGINGFACE_API_TOKEN:
