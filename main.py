@@ -5,14 +5,24 @@ import requests
 import os
 from dotenv import load_dotenv
 from transformers import AutoTokenizer
+from huggingface_hub import login
 
 load_dotenv()
 
+# Récupération du token Hugging Face depuis les variables d'environnement
 HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
-MAX_TOKEN_LIMIT = 32768  # ✅ Limite maximale de tokens imposée par Hugging Face
+if not HUGGINGFACE_API_TOKEN:
+    raise ValueError("HUGGINGFACE_API_TOKEN n'est pas défini dans les variables d'environnement.")
 
-# ✅ Initialisation du tokenizer pour compter les tokens
-tokenizer = AutoTokenizer.from_pretrained("mistralai/Mixtral-8x7B-Instruct-v0.1")
+# Authentification explicite auprès de Hugging Face
+login(token=HUGGINGFACE_API_TOKEN)
+
+MAX_TOKEN_LIMIT = 32768  # Limite maximale de tokens imposée par Hugging Face
+
+# Initialisation du tokenizer avec authentification
+tokenizer = AutoTokenizer.from_pretrained(
+    "mistralai/Mixtral-8x7B-Instruct-v0.1", use_auth_token=True
+)
 
 app = FastAPI()
 
@@ -24,22 +34,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Fonction pour compter les tokens
+# Fonction pour compter les tokens
 def count_tokens(text):
     return len(tokenizer.encode(text, add_special_tokens=False))
 
-# ✅ Fonction pour résumer avec Hugging Face
+# Fonction pour résumer avec Hugging Face
 def summarize_with_huggingface(text, lang):
     headers = {"Authorization": f"Bearer {HUGGINGFACE_API_TOKEN}"}
-    API_URL = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1"
+    # On ajoute le paramètre library dans l'URL pour utiliser la bonne librairie
+    API_URL = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1?library=transformers"
 
     prompt = (
         f"Résume la transcription de la vidéo Youtube suivante, en français :\n{text}\n\nresume-youtube-response :"
         if lang == "fr"
-        else f"Summarize the transcription of the following YouTube video in English:\n{text}\n\resume-youtube-response :"
+        else f"Summarize the transcription of the following YouTube video in English:\n{text}\n\nresume-youtube-response :"
     )
 
-    # ✅ Vérification de la limite de tokens
+    # Vérification de la limite de tokens
     token_count = count_tokens(prompt)
     if token_count > MAX_TOKEN_LIMIT:
         raise HTTPException(
@@ -54,7 +65,7 @@ def summarize_with_huggingface(text, lang):
 
     try:
         response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()  # ✅ Déclenche une erreur pour tout statut HTTP >= 400
+        response.raise_for_status()  # Déclenche une erreur pour tout statut HTTP >= 400
 
         result = response.json()
         if isinstance(result, list) and "generated_text" in result[0]:
@@ -71,20 +82,16 @@ def summarize_with_huggingface(text, lang):
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=502, detail=f"Erreur de communication avec Hugging Face : {str(e)}")
 
-# ✅ Route pour générer le résumé
+# Route pour générer le résumé
 @app.get("/summary/")
 def get_summary(video_id: str, lang: str = Query("fr", regex="^(fr|en)$")):
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["fr", "en"])
         full_text = " ".join([entry["text"] for entry in transcript])
-
         return {"summary": summarize_with_huggingface(full_text, lang)}
-
     except TranscriptsDisabled:
         raise HTTPException(status_code=403, detail="Les transcriptions sont désactivées pour cette vidéo.")
-    
     except NoTranscriptFound:
         raise HTTPException(status_code=404, detail="Aucune transcription trouvée pour cette vidéo.")
-    
     except CouldNotRetrieveTranscript:
         raise HTTPException(status_code=502, detail="Impossible de récupérer la transcription.")
