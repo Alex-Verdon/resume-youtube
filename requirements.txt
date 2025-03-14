@@ -19,3 +19,6 @@ urllib3==2.3.0
 uvicorn
 fastapi
 youtube-transcript-api
+python-dotenv
+torch
+pydantic
