@@ -20,9 +20,7 @@ login(token=HUGGINGFACE_API_TOKEN)
 MAX_TOKEN_LIMIT = 32768  # Limite maximale de tokens imposée par Hugging Face
 
 # Initialisation du tokenizer avec authentification
-tokenizer = AutoTokenizer.from_pretrained(
-    "mistralai/Mixtral-8x7B-Instruct-v0.1", use_auth_token=True
-)
+tokenizer = AutoTokenizer.from_pretrained("mistralai/Mixtral-8x7B-Instruct-v0.1", token=HUGGINGFACE_API_TOKEN)
 
 app = FastAPI()
 
